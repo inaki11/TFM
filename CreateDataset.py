@@ -1,7 +1,7 @@
 from torch.utils.data import Dataset
 from transformers import BertTokenizer
 import json
-import deepl
+#import deepl
 
 class createAuxDataset(Dataset):
     def __init__(self, file_path, DATA_AUGMENTATION=False, MAX_LENGTH=512):
@@ -22,7 +22,7 @@ class createAuxDataset(Dataset):
     def __getitem__(self, idx):
         text, category = self.data[idx]
         return text, category
-    
+"""
 class createAuxDeepLDataset(Dataset):
     def __init__(self, file_path, DATA_AUGMENTATION=False, MAX_LENGTH=512, target_language='EN'):
         self.data = []
@@ -42,7 +42,8 @@ class createAuxDeepLDataset(Dataset):
     def __getitem__(self, idx):
         text, category = self.data[idx]
         return text, category
-    
+
+"""
 
 class BertDataset(Dataset):
     def __init__(self, X, y, DATA_AUGMENTATION=False, MAX_LENGTH=512, MODEL_NAME='bert-base-uncased'):

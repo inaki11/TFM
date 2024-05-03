@@ -83,11 +83,12 @@ def evaluate(model, test_dataloader, THRESHOLD=0.5, LOWER_UPPER_BOUND=False, val
             labels = labels.to(device)
                     
             # Forward pass
-            outputs = model(input_ids, attention_mask)
+            embbedings, outputs = model(input_ids, attention_mask)
             test_outputs += outputs.tolist()
             logits = outputs.squeeze(-1)
 
             # Compute loss
+            criterion = torch.nn.BCELoss() # torch.nn.BCEWithLogitsLoss()
             test_loss = criterion(logits, labels.float())
 
             # Accumulate test loss and total number of samples

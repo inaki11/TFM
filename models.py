@@ -30,7 +30,7 @@ class BertLargePooledOutput(nn.Module):
     def forward(self, input_ids, attention_mask=None):
         outputs = self.bert(input_ids, attention_mask=attention_mask)
         pooled_output = outputs.pooler_output
-        pooled_output = self.dropout(pooled_output)
-        logits = self.classifier(pooled_output)
+        pooled_output_d = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output_d)
         probabilities = self.sigmoid(logits)
-        return probabilities
+        return pooled_output, probabilities

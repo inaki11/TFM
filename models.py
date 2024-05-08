@@ -19,6 +19,22 @@ class BertBasePooledOutput(nn.Module):
         probabilities = self.sigmoid(logits)
         return pooled_output, probabilities  # TODO cambiar a logits
     
+class BertBaseDenseLogits(nn.Module):
+    def __init__(self, pretrained_model_name='bert-base-uncased', hidden_size=768, dense_dim=32, dropout_prob=0):
+        super(BertBaseDenseLogits, self).__init__()
+        self.bert = BertModel.from_pretrained(pretrained_model_name)
+        self.dense = nn.Linear(hidden_size, dense_dim) 
+        self.dropout = nn.Dropout(dropout_prob)
+        self.classifier = nn.Linear(dense_dim, 1) 
+
+    def forward(self, input_ids, attention_mask=None):
+        embeddings = self.bert(input_ids, attention_mask=attention_mask)
+        embeddings = embeddings.pooler_output
+        outputs = self.dense(embeddings)
+        outputs = self.dropout(outputs)
+        logits = self.classifier(outputs) 
+        return embeddings, logits
+    
 class BertLargePooledOutput(nn.Module):
     def __init__(self, pretrained_model_name='bert-large-uncased', hidden_size=1024, dropout_prob=0):
         super(BertLargePooledOutput, self).__init__()
@@ -30,7 +46,7 @@ class BertLargePooledOutput(nn.Module):
     def forward(self, input_ids, attention_mask=None):
         outputs = self.bert(input_ids, attention_mask=attention_mask)
         pooled_output = outputs.pooler_output
-        pooled_output_d = self.dropout(pooled_output)
-        logits = self.classifier(pooled_output_d)
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)
         probabilities = self.sigmoid(logits)
-        return pooled_output, probabilities
+        return probabilities

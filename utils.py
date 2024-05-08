@@ -9,7 +9,7 @@ import wandb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def train_loop(model, train_dataloader, optimizer, scheduler, NUM_EPOCHS, tem, lam, loss_fn='cross_entropy'):
+def train_loop(model, train_dataloader, positive, negative, optimizer, scheduler, NUM_EPOCHS, tem, lam, decay, loss_fn='cross_entropy'):
     train_losses = []
     for epoch in range(NUM_EPOCHS):
         # Set your model to training mode
@@ -26,20 +26,20 @@ def train_loop(model, train_dataloader, optimizer, scheduler, NUM_EPOCHS, tem, l
 
                 # Forward pass
                 optimizer.zero_grad()
-                embbedings, outputs = model(input_ids, attention_mask)
-                logits = outputs.squeeze(-1)
+                embbedings, logits = model(input_ids, attention_mask)
+                logits = logits.squeeze(-1)
 
                 # Compute loss
                 if loss_fn == 'cross_entropy':
-                    criterion = torch.nn.BCELoss() # torch.nn.BCEWithLogitsLoss()
+                    criterion = torch.nn.BCEWithLogitsLoss() 
                     loss = criterion(logits, labels.float())
                 elif loss_fn == 'supervised_contrastive':
                     #print("supervised_contrastive")
-                    criterion = torch.nn.BCELoss() # torch.nn.BCEWithLogitsLoss()
+                    criterion = torch.nn.BCEWithLogitsLoss()
                     cross_loss = criterion(logits, labels.float())
-                    contrastive_l = contrastive_loss(tem, embbedings.cpu().detach().numpy(), labels)
+                    contrastive_l = contrastive_loss(tem, embbedings.copy(), labels)
                     loss = (lam * contrastive_l) + (1 - lam) * (cross_loss)
-                    
+                
 
                 # Backward pass
                 loss.backward()
@@ -57,6 +57,12 @@ def train_loop(model, train_dataloader, optimizer, scheduler, NUM_EPOCHS, tem, l
                 #update learning rate
                 if scheduler:
                     scheduler.step()
+                """
+                # Add decay to contrastive loss
+                lam = lam - decay
+                if lam < 0:
+                lam = 0
+                """
 
             # Print average loss for this epoch
             avg_train_loss = total_loss / len(train_dataloader)

@@ -9,7 +9,7 @@ import wandb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def train_loop(model, train_dataloader, positive, negative, optimizer, scheduler, NUM_EPOCHS, tem, lam, decay, loss_fn, device):
+def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, optimizer, scheduler, NUM_EPOCHS, tem, lam, decay, loss_fn, device):
     train_losses = []
     for epoch in range(NUM_EPOCHS):
         # Set your model to training mode
@@ -61,44 +61,21 @@ def train_loop(model, train_dataloader, positive, negative, optimizer, scheduler
                 #update learning rate
                 if scheduler:
                     scheduler.step()
-                """
+                
                 # Add decay to contrastive loss
                 lam = lam - decay
                 if lam < 0:
-                lam = 0
-                """
+                    lam = 0
 
             # Print average loss for this epoch
             avg_train_loss = total_loss / len(train_dataloader)
             print(f"Epoch {epoch+1}, Average Train Loss: {avg_train_loss}")
             train_losses += [avg_train_loss]
+
+            # log in wandb for epoch analysis
+            evaluate(model, test_en_dataloader, 0.5, device, val_or_test="Test")
             
     return train_losses
-
-def test_contrastive_loss(model, train_en_dataloader,  tem, lam, device):
-    data = train_en_dataloader.__iter__().__next__()
-    input_ids, attention_mask, labels, _ = data
-
-    # Move batch to device
-    input_ids = input_ids.to(device)
-    attention_mask = attention_mask.to(device)
-    labels = labels.to(device)
-
-    embeddings, logits = model(input_ids, attention_mask)
-    logits = logits.squeeze(-1)
-
-    criterion = torch.nn.BCEWithLogitsLoss()
-    cross_loss = criterion(logits, labels.float())
-
-    # original
-    contrastive_l = contrastive_loss(tem, embeddings.cpu().detach().numpy(), labels)
-    loss = (lam * contrastive_l) + (1 - lam) * (cross_loss)
-    print(f"original cross_loss: {loss}")
-
-    # new
-    contrastive_l_torch = torch_contrastive_loss(tem, embeddings, labels, device)
-    loss_torch = (lam * contrastive_l_torch) + (1 - lam) * (cross_loss)
-    print(f"new cross_loss: {loss_torch}")
 
 
 def evaluate(model, test_dataloader, THRESHOLD, device, LOWER_UPPER_BOUND=False, val_or_test=None, plot_errors_distribution=False):
@@ -263,3 +240,29 @@ def torch_contrastive_loss(temp, embedding, label, device):
         else:
             contrastive_loss += 0
     return contrastive_loss
+
+
+def test_contrastive_loss(model, train_en_dataloader,  tem, lam, device):
+    data = train_en_dataloader.__iter__().__next__()
+    input_ids, attention_mask, labels, _ = data
+
+    # Move batch to device
+    input_ids = input_ids.to(device)
+    attention_mask = attention_mask.to(device)
+    labels = labels.to(device)
+
+    embeddings, logits = model(input_ids, attention_mask)
+    logits = logits.squeeze(-1)
+
+    criterion = torch.nn.BCEWithLogitsLoss()
+    cross_loss = criterion(logits, labels.float())
+
+    # original
+    contrastive_l = contrastive_loss(tem, embeddings.cpu().detach().numpy(), labels)
+    loss = (lam * contrastive_l) + (1 - lam) * (cross_loss)
+    print(f"original cross_loss: {loss}")
+
+    # new
+    contrastive_l_torch = torch_contrastive_loss(tem, embeddings, labels, device)
+    loss_torch = (lam * contrastive_l_torch) + (1 - lam) * (cross_loss)
+    print(f"new cross_loss: {loss_torch}")

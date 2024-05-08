@@ -9,7 +9,7 @@ import wandb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def train_loop(model, train_dataloader, positive, negative, optimizer, scheduler, NUM_EPOCHS, tem, lam, decay, loss_fn='cross_entropy'):
+def train_loop(model, train_dataloader, positive, negative, optimizer, scheduler, NUM_EPOCHS, tem, lam, decay, loss_fn, device):
     train_losses = []
     for epoch in range(NUM_EPOCHS):
         # Set your model to training mode
@@ -18,6 +18,7 @@ def train_loop(model, train_dataloader, positive, negative, optimizer, scheduler
         model.train()
         with tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{NUM_EPOCHS}", unit="batch") as tepoch:
             for i, data in enumerate(tepoch):
+
                 input_ids, attention_mask, labels, _ = data
                 # Move batch to device
                 input_ids = input_ids.to(device)
@@ -26,18 +27,21 @@ def train_loop(model, train_dataloader, positive, negative, optimizer, scheduler
 
                 # Forward pass
                 optimizer.zero_grad()
-                embbedings, logits = model(input_ids, attention_mask)
+
+                embeddings, logits = model(input_ids, attention_mask)
                 logits = logits.squeeze(-1)
 
                 # Compute loss
                 if loss_fn == 'cross_entropy':
                     criterion = torch.nn.BCEWithLogitsLoss() 
                     loss = criterion(logits, labels.float())
+
                 elif loss_fn == 'supervised_contrastive':
-                    #print("supervised_contrastive")
                     criterion = torch.nn.BCEWithLogitsLoss()
                     cross_loss = criterion(logits, labels.float())
-                    contrastive_l = contrastive_loss(tem, embbedings.copy(), labels)
+                    contrastive_l = torch_contrastive_loss(tem, embeddings, labels, device)
+                    # original
+                    # contrastive_l = contrastive_loss(tem, embeddings.cpu().detach().numpy(), labels)
                     loss = (lam * contrastive_l) + (1 - lam) * (cross_loss)
                 
 
@@ -71,8 +75,33 @@ def train_loop(model, train_dataloader, positive, negative, optimizer, scheduler
             
     return train_losses
 
+def test_contrastive_loss(model, train_en_dataloader,  tem, lam, device):
+    data = train_en_dataloader.__iter__().__next__()
+    input_ids, attention_mask, labels, _ = data
 
-def evaluate(model, test_dataloader, THRESHOLD=0.5, LOWER_UPPER_BOUND=False, val_or_test=None, plot_errors_distribution=False):
+    # Move batch to device
+    input_ids = input_ids.to(device)
+    attention_mask = attention_mask.to(device)
+    labels = labels.to(device)
+
+    embeddings, logits = model(input_ids, attention_mask)
+    logits = logits.squeeze(-1)
+
+    criterion = torch.nn.BCEWithLogitsLoss()
+    cross_loss = criterion(logits, labels.float())
+
+    # original
+    contrastive_l = contrastive_loss(tem, embeddings.cpu().detach().numpy(), labels)
+    loss = (lam * contrastive_l) + (1 - lam) * (cross_loss)
+    print(f"original cross_loss: {loss}")
+
+    # new
+    contrastive_l_torch = torch_contrastive_loss(tem, embeddings, labels, device)
+    loss_torch = (lam * contrastive_l_torch) + (1 - lam) * (cross_loss)
+    print(f"new cross_loss: {loss_torch}")
+
+
+def evaluate(model, test_dataloader, THRESHOLD, device, LOWER_UPPER_BOUND=False, val_or_test=None, plot_errors_distribution=False):
     test_outputs = []
     test_true_labels = []
     with torch.no_grad():
@@ -89,7 +118,7 @@ def evaluate(model, test_dataloader, THRESHOLD=0.5, LOWER_UPPER_BOUND=False, val
             labels = labels.to(device)
                     
             # Forward pass
-            embbedings, logits = model(input_ids, attention_mask)
+            embeddings, logits = model(input_ids, attention_mask)
             logits = logits.squeeze(-1)
             # apply sigmoid to get probabilities
             test_outputs += torch.sigmoid(logits).tolist()
@@ -169,8 +198,10 @@ def contrastive_loss(temp, embedding, label):
     """
     # cosine similarity between embeddings
     cosine_sim = cosine_similarity(embedding, embedding)
+
     # remove diagonal elements from matrix
     dis = cosine_sim[~np.eye(cosine_sim.shape[0], dtype=bool)].reshape(cosine_sim.shape[0], -1)
+
     # apply temprature to elements
     dis = dis / temp
     cosine_sim = cosine_sim / temp
@@ -191,6 +222,42 @@ def contrastive_loss(temp, embedding, label):
         for j in range(len(embedding)):
             if label[i] == label[j] and i != j:
                 inner_sum = inner_sum + np.log(cosine_sim[i][j] / row_sum[i])
+        if n_i != 0:
+            contrastive_loss += (inner_sum / (-n_i))
+        else:
+            contrastive_loss += 0
+    return contrastive_loss
+
+def torch_contrastive_loss(temp, embedding, label, device):
+    """calculate the contrastive loss
+    """
+    # cosine similarity between embeddings
+    cosine_sim = torch.nn.functional.cosine_similarity(embedding.unsqueeze(1), embedding.unsqueeze(0), dim=2)
+
+    # remove diagonal elements from matrix
+    I = torch.eye(cosine_sim.shape[0]).bool().to(device)
+    dis = cosine_sim.masked_fill_(I, 0)
+
+    # apply temperature to elements
+    dis = dis / temp
+    cosine_sim = cosine_sim / temp
+
+    # apply exp to elements
+    dis = torch.exp(dis)
+    cosine_sim = torch.exp(cosine_sim)
+
+    # calculate row sum
+    row_sum = dis.sum(dim=1)
+
+    # calculate outer sum
+    contrastive_loss = 0
+    for i in range(len(embedding)):
+        n_i = (label == label[i]).sum().item() - 1
+        inner_sum = 0
+        # calculate inner sum
+        for j in range(len(embedding)):
+            if label[i] == label[j] and i != j:
+                inner_sum = inner_sum + torch.log(cosine_sim[i][j] / row_sum[i])
         if n_i != 0:
             contrastive_loss += (inner_sum / (-n_i))
         else:

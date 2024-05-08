@@ -89,12 +89,13 @@ def evaluate(model, test_dataloader, THRESHOLD=0.5, LOWER_UPPER_BOUND=False, val
             labels = labels.to(device)
                     
             # Forward pass
-            embbedings, outputs = model(input_ids, attention_mask)
-            test_outputs += outputs.tolist()
-            logits = outputs.squeeze(-1)
+            embbedings, logits = model(input_ids, attention_mask)
+            logits = logits.squeeze(-1)
+            # apply sigmoid to get probabilities
+            test_outputs += torch.sigmoid(logits).tolist()
 
             # Compute loss
-            criterion = torch.nn.BCELoss() # torch.nn.BCEWithLogitsLoss()
+            criterion = torch.nn.BCEWithLogitsLoss()
             test_loss = criterion(logits, labels.float())
 
             # Accumulate test loss and total number of samples
@@ -104,7 +105,7 @@ def evaluate(model, test_dataloader, THRESHOLD=0.5, LOWER_UPPER_BOUND=False, val
     # Calculate average test loss
     average_test_loss = total_test_loss / total_test_samples   
                     
-    test_predictions = [1 if x[0] > THRESHOLD else 0 for x in test_outputs]
+    test_predictions = [1 if x > THRESHOLD else 0 for x in test_outputs]
     mcc = matthews_corrcoef(test_true_labels, test_predictions)
     print(f"{val_or_test} MCC {THRESHOLD} threshold:  {mcc:.4f}")
     

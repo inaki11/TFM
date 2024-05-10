@@ -39,9 +39,7 @@ def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, 
                 elif loss_fn == 'supervised_contrastive':
                     criterion = torch.nn.BCEWithLogitsLoss()
                     cross_loss = criterion(logits, labels.float())
-                    contrastive_l = torch_contrastive_loss(tem, embeddings, labels, device)
-                    # original
-                    # contrastive_l = contrastive_loss(tem, embeddings.cpu().detach().numpy(), labels)
+                    contrastive_l = new_torch_contrastive_loss(tem, embeddings, labels, device)
                     loss = (lam * contrastive_l) + (1 - lam) * (cross_loss)
                 
 
@@ -241,6 +239,36 @@ def torch_contrastive_loss(temp, embedding, label, device):
             contrastive_loss += 0
     return contrastive_loss
 
+
+def new_torch_contrastive_loss(temp, embedding, label, device):
+    """calculate the contrastive loss
+    """
+    # cosine similarity between embeddings
+    cosine_sim = torch.nn.functional.cosine_similarity(embedding.unsqueeze(1), embedding.unsqueeze(0), dim=2)
+
+    # apply temperature to elements
+    cosine_sim = cosine_sim / temp
+    cosine_sim = torch.exp(cosine_sim)
+
+    # calculate row sum
+    #    remove diagonal elements from matrix
+    I = torch.eye(cosine_sim.shape[0]).bool().to(device)
+    dis = cosine_sim.masked_fill_(I, 0)
+    row_sum = dis.sum(dim=1)
+
+    # calculate outer sum
+    contrastive_loss = 0
+    for i in range(len(embedding)):
+        n_i = (label == label[i]).sum().item() - 1
+        inner_sum = 0
+        # calculate inner sum
+        for j in range(len(embedding)):
+            if label[i] == label[j] and i != j:
+                inner_sum += torch.log(cosine_sim[i][j] / row_sum[i])
+        if n_i != 0:
+            contrastive_loss += (-inner_sum / n_i)
+
+    return contrastive_loss / len(embedding) # normalize by number of samples
 
 def test_contrastive_loss(model, train_en_dataloader,  tem, lam, device):
     data = train_en_dataloader.__iter__().__next__()

@@ -39,7 +39,7 @@ def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, 
                 elif loss_fn == 'supervised_contrastive':
                     criterion = torch.nn.BCEWithLogitsLoss()
                     cross_loss = criterion(logits, labels.float())
-                    contrastive_l = new_torch_contrastive_loss(tem, embeddings, labels, device)
+                    contrastive_l = torch_contrastive_loss(tem, embeddings, labels, device)
                     loss = (lam * contrastive_l) + (1 - lam) * (cross_loss)
                 
 
@@ -237,9 +237,9 @@ def torch_contrastive_loss(temp, embedding, label, device):
             contrastive_loss += (inner_sum / (-n_i))
         else:
             contrastive_loss += 0
-    return contrastive_loss
+    return contrastive_loss  # En el paper no se normaliza por batch size pero esto no tiene ningun tipo de sentido. probablente esta mal la formula en el paper.
 
-
+# Cambios solucionando los errores de implementacion.
 def new_torch_contrastive_loss(temp, embedding, label, device):
     """calculate the contrastive loss
     """
@@ -247,13 +247,13 @@ def new_torch_contrastive_loss(temp, embedding, label, device):
     cosine_sim = torch.nn.functional.cosine_similarity(embedding.unsqueeze(1), embedding.unsqueeze(0), dim=2)
 
     # apply temperature to elements
-    cosine_sim = cosine_sim / temp
-    cosine_sim = torch.exp(cosine_sim)
+    cosine_sim_temp = cosine_sim / temp
+    cosine_sim_exp = torch.exp(cosine_sim_temp)
 
     # calculate row sum
     #    remove diagonal elements from matrix
-    I = torch.eye(cosine_sim.shape[0]).bool().to(device)
-    dis = cosine_sim.masked_fill_(I, 0)
+    I = torch.eye(cosine_sim_exp.shape[0]).bool().to(device)
+    dis = cosine_sim_exp.masked_fill_(I, 0)
     row_sum = dis.sum(dim=1)
 
     # calculate outer sum

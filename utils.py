@@ -246,14 +246,19 @@ def new_torch_contrastive_loss(temp, embedding, label, device):
     # cosine similarity between embeddings
     cosine_sim = torch.nn.functional.cosine_similarity(embedding.unsqueeze(1), embedding.unsqueeze(0), dim=2)
 
+    # remove diagonal elements from matrix
+    I = torch.eye(cosine_sim.shape[0]).bool().to(device)
+    dis = cosine_sim.masked_fill_(I, 0)
+
     # apply temperature to elements
-    cosine_sim_temp = cosine_sim / temp
-    cosine_sim_exp = torch.exp(cosine_sim_temp)
+    dis = dis / temp
+    cosine_sim = cosine_sim / temp
+
+    # apply exp to elements
+    dis = torch.exp(dis)
+    cosine_sim = torch.exp(cosine_sim)
 
     # calculate row sum
-    #    remove diagonal elements from matrix
-    I = torch.eye(cosine_sim_exp.shape[0]).bool().to(device)
-    dis = cosine_sim_exp.masked_fill_(I, 0)
     row_sum = dis.sum(dim=1)
 
     # calculate outer sum
@@ -264,9 +269,11 @@ def new_torch_contrastive_loss(temp, embedding, label, device):
         # calculate inner sum
         for j in range(len(embedding)):
             if label[i] == label[j] and i != j:
-                inner_sum += torch.log(cosine_sim[i][j] / row_sum[i])
+                inner_sum = inner_sum + torch.log(cosine_sim[i][j] / row_sum[i])
         if n_i != 0:
-            contrastive_loss += (-inner_sum / n_i)
+            contrastive_loss += (inner_sum / (-n_i))
+        else:
+            contrastive_loss += 0
 
     return contrastive_loss / len(embedding) # normalize by number of samples
 

@@ -9,7 +9,7 @@ import wandb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, optimizer, scheduler, NUM_EPOCHS, tem, lam, decay, loss_fn, device):
+def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, optimizer, scheduler, NUM_EPOCHS, tem, lam, decay, loss_fn, device, swap):
     train_losses = []
     for epoch in range(NUM_EPOCHS):
         # Set your model to training mode
@@ -40,8 +40,17 @@ def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, 
                     criterion = torch.nn.BCEWithLogitsLoss()
                     cross_loss = criterion(logits, labels.float())
                     contrastive_l = new_torch_contrastive_loss(tem, embeddings, labels, device)
-                    loss = (lam * contrastive_l) + (1 - lam) * (cross_loss)
+                    # Pruebo a implementar entrenamiento en dos fases. Primero CL y luego Cross Entropy
+                    if swap != 0:
+                        if epoch <= swap:
+                            loss = contrastive_l
+                        else:
+                            loss = cross_loss
+                    else: 
+                        loss = (lam * contrastive_l) + (1 - lam) * (cross_loss)
                 
+                elif loss_fn == 'MixUp':
+                    # TO DO
 
                 # Backward pass
                 loss.backward()

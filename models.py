@@ -16,8 +16,17 @@ class BertBasePooledOutput(nn.Module):
         pooled_output = outputs.pooler_output
         pooled_output_d = self.dropout(pooled_output)
         logits = self.classifier(pooled_output_d) # TODO Cambiar a 2 neuronas en vez de una
-        probabilities = self.sigmoid(logits)
-        return pooled_output, probabilities  # TODO cambiar a logits
+        return pooled_output, logits  # TODO cambiar a logits
+    
+    def mixup_forward(self, input_ids_1, attention_mask_1, input_ids_2, attention_mask_2, beta):
+        emb_1 = self.bert(input_ids_1, attention_mask=attention_mask_1)
+        emb_2 = self.bert(input_ids_2, attention_mask=attention_mask_2)
+        emb_1 = emb_1.pooler_output
+        emb_2 = emb_2.pooler_output
+        mixed_emb = beta * emb_1 + (1 - beta) * emb_2
+        pooled_output_d = self.dropout(mixed_emb)
+        logits = self.classifier(pooled_output_d)
+        return mixed_emb, logits
     
 class BertBaseDenseLogits(nn.Module):
     def __init__(self, pretrained_model_name='bert-base-uncased', hidden_size=768, dense_dim=32, dropout_prob=0):

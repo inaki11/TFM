@@ -7,9 +7,7 @@ import numpy as np
 import wandb
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, optimizer, scheduler, NUM_EPOCHS, tem, lam, decay, loss_fn, device, swap):
+def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, optimizer, scheduler, NUM_EPOCHS, tem, lam, decay, loss_fn, device, swap, alfa):
     train_losses = []
     for epoch in range(NUM_EPOCHS):
         # Set your model to training mode
@@ -28,17 +26,26 @@ def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, 
                 # Forward pass
                 optimizer.zero_grad()
 
-                embeddings, logits = model(input_ids, attention_mask)
-                logits = logits.squeeze(-1)
+                if loss_fn == 'MixUp' or loss_fn == 'MixUp_SCL':
+                    mixup_input_ids, mixup_attention_masks, mixup_labels = get_mixup_batch(positive, negative, labels)
+                    mixup_input_ids, mixup_attention_masks, mixup_labels = mixup_input_ids.to(device), mixup_attention_masks.to(device), mixup_labels.to(device)
+                    # mezclamos labels de cauerdo a gamma(alfa, alfa), y guardamos en beta las mezclas para mezclar igual los embeddings
+                    beta, labels = mix_labels(labels, mixup_labels, device, alfa=alfa)
+                    # OJO: Sobre-escribimos labels y logits para que se pueda hacer uso despues de BCE o CL de igual forma.
+                    # Sin embargo, el mixup devuelve los embeddings SIN MEZCLAR del primer batch, para que pueda ser usado junto SCL si se quiere.
+                    embeddings, logits = model.mixup_forward(input_ids, attention_mask, mixup_input_ids, mixup_attention_masks, beta.view(-1, 1))
 
+                else:
+                    embeddings, logits = model(input_ids, attention_mask)
+
+                logits.squeeze(-1)
+                BCE = torch.nn.BCEWithLogitsLoss() 
                 # Compute loss
-                if loss_fn == 'cross_entropy':
-                    criterion = torch.nn.BCEWithLogitsLoss() 
-                    loss = criterion(logits, labels.float())
+                if loss_fn == 'cross_entropy' or loss_fn == 'MixUp':
+                    loss = BCE(logits, labels.float())
 
-                elif loss_fn == 'supervised_contrastive':
-                    criterion = torch.nn.BCEWithLogitsLoss()
-                    cross_loss = criterion(logits, labels.float())
+                elif loss_fn == 'supervised_contrastive' or loss_fn == 'MixUp_SCL':
+                    cross_loss = BCE(logits, labels.float())
                     contrastive_l = new_torch_contrastive_loss(tem, embeddings, labels, device)
                     # Pruebo a implementar entrenamiento en dos fases. Primero CL y luego Cross Entropy
                     if swap != 0:
@@ -49,9 +56,6 @@ def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, 
                     else: 
                         loss = (lam * contrastive_l) + (1 - lam) * (cross_loss)
                 
-                elif loss_fn == 'MixUp':
-                    # TO DO
-
                 # Backward pass
                 loss.backward()
                 
@@ -174,6 +178,25 @@ def evaluate_kfold_ensemble(predictions, test_dataloader, THRESHOLD=0.5, LOWER_U
     if wandb.run is not None:
         wandb.log({f"test_ensemble_{THRESHOLD}_threshold_MCC":mcc})
     # Max Voting
+
+
+def get_mixup_batch(positive, negative, labels):
+    input_ids, attention_masks, mixup_labels = [], [], []
+    for label in labels.tolist():
+        if label == 0:
+            input_id, attention_mask, label, _ = positive[np.random.randint(0, len(positive))]
+        else:
+            input_id, attention_mask, label, _ = negative[np.random.randint(0, len(negative))]
+        input_ids.append(input_id)
+        attention_masks.append(attention_mask)
+        mixup_labels.append(label)
+
+    return [torch.stack(input_ids), torch.stack(attention_masks), torch.tensor(mixup_labels)]
+
+def mix_labels(labels, mixup_labels, device, alfa=0.3):
+    beta = torch.tensor([np.random.beta(alfa, alfa) for _ in range(len(labels))]).reshape(1, -1)
+    beta = beta.to(device)
+    return  beta, (beta * labels + (1 - beta) * mixup_labels).reshape(-1,1)
 
     
 # credit  -  https://github.com/sl-93/SUPERVISED-CONTRASTIVE-LEARNING-FOR-PRE-TRAINED-LANGUAGE-MODEL-FINE-TUNING/blob/main/main.py

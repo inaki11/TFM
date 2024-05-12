@@ -7,7 +7,7 @@ import numpy as np
 import wandb
 
 
-def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, optimizer, scheduler, NUM_EPOCHS, tem, lam, decay, loss_fn, device, swap, alfa):
+def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, optimizer, scheduler, NUM_EPOCHS, tem, lam, decay, loss_fn, device, swap, alfa, evaluate_freq):
     train_losses = []
     for epoch in range(NUM_EPOCHS):
         # Set your model to training mode
@@ -84,7 +84,8 @@ def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, 
             train_losses += [avg_train_loss]
 
             # log in wandb for epoch analysis
-            evaluate(model, test_en_dataloader, 0.5, device, val_or_test="Test")
+            if evaluate_freq == 'EVERY_EPOCH':
+                evaluate(model, test_en_dataloader, 0.5, device, val_or_test="Test")
             
     return train_losses
 
@@ -92,6 +93,7 @@ def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, 
 def evaluate(model, test_dataloader, THRESHOLD, device, LOWER_UPPER_BOUND=False, val_or_test=None, plot_errors_distribution=False):
     test_outputs = []
     test_true_labels = []
+    model.eval()
     with torch.no_grad():
         total_test_loss = 0
         total_test_samples = 0

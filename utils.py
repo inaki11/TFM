@@ -30,23 +30,26 @@ def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, 
                     mixup_input_ids, mixup_attention_masks, mixup_labels = get_mixup_batch(positive, negative, labels)
                     mixup_input_ids, mixup_attention_masks, mixup_labels = mixup_input_ids.to(device), mixup_attention_masks.to(device), mixup_labels.to(device)
                     # mezclamos labels de cauerdo a gamma(alfa, alfa), y guardamos en beta las mezclas para mezclar igual los embeddings
-                    beta, labels = mix_labels(labels, mixup_labels, device, alfa=alfa)
-                    # OJO: Sobre-escribimos labels y logits para que se pueda hacer uso despues de BCE o CL de igual forma.
+                    beta, mixed_labels = mix_labels(labels, mixup_labels, device, alfa=alfa)
+                    # OJO: Sobre-escribimos logits para que se pueda hacer uso despues de BCE o CL de igual forma.
                     # Sin embargo, el mixup devuelve los embeddings SIN MEZCLAR del primer batch, para que pueda ser usado junto SCL si se quiere.
                     embeddings, logits = model.mixup_forward(input_ids, attention_mask, mixup_input_ids, mixup_attention_masks, beta.view(-1, 1))
 
                 else:
                     embeddings, logits = model(input_ids, attention_mask)
-
-                logits.squeeze(-1)
                 BCE = torch.nn.BCEWithLogitsLoss() 
                 # Compute loss
-                if loss_fn == 'cross_entropy' or loss_fn == 'MixUp':
-                    loss = BCE(logits, labels.float())
+                if loss_fn == 'cross_entropy':
+                    loss = BCE(logits, labels.reshape(-1,1).float())
 
                 elif loss_fn == 'supervised_contrastive' or loss_fn == 'MixUp_SCL':
-                    cross_loss = BCE(logits, labels.float())
+
+                    if loss_fn == 'supervised_contrastive':
+                        cross_loss = BCE(logits, labels.reshape(-1,1).float())
+                    elif loss_fn == 'MixUp_SCL':
+                        cross_loss = BCE(logits, mixed_labels.reshape(-1,1).float())
                     contrastive_l = new_torch_contrastive_loss(tem, embeddings, labels, device)
+
                     # Pruebo a implementar entrenamiento en dos fases. Primero CL y luego Cross Entropy
                     if swap != 0:
                         if epoch <= swap:
@@ -55,7 +58,7 @@ def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, 
                             loss = cross_loss
                     else: 
                         loss = (lam * contrastive_l) + (1 - lam) * (cross_loss)
-                
+
                 # Backward pass
                 loss.backward()
                 

@@ -1,5 +1,5 @@
 from torch.utils.data import Dataset
-from transformers import BertTokenizer
+from transformers import BertTokenizer, RobertaTokenizer
 import json
 #import deepl
 
@@ -77,6 +77,35 @@ class BertDataset(Dataset):
 
         return input_ids, attention_mask, label, text
     
+class RobertaDataset(Dataset):
+    def __init__(self, X, y, DATA_AUGMENTATION=False, MAX_LENGTH=512, MODEL_NAME='roberta-base'):
+        self.max_length = MAX_LENGTH
+        self.tokenizer = RobertaTokenizer.from_pretrained(MODEL_NAME)
+        self.X = X
+        self.y = y
+    
+    def __len__(self):
+        return len(self.X)
+    
+    def __getitem__(self, idx):
+        text, label = self.X[idx], self.y[idx]
+        # Aplicar aumento de datos
+        #if DATA_AUGMENTATION != []:
+            #print("aumentado de datos TO DO")
+            # TO DO
+        # Tokenizar el texto y obtener los input_ids
+        inputs = self.tokenizer(
+            text,
+            padding='max_length',
+            truncation=True,
+            max_length=self.max_length,
+            return_tensors='pt'
+        )
+        
+        input_ids = inputs['input_ids'][0]
+        attention_mask = inputs['attention_mask'][0]
+
+        return input_ids, attention_mask, label, text
 
 
     """

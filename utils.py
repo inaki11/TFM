@@ -41,6 +41,9 @@ def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, 
                 # Compute loss
                 if loss_fn == 'cross_entropy':
                     loss = BCE(logits, labels.reshape(-1,1).float())
+                
+                if loss_fn == 'MixUp':
+                    loss = BCE(logits, mixed_labels.reshape(-1,1).float())
 
                 elif loss_fn == 'supervised_contrastive' or loss_fn == 'MixUp_SCL':
 

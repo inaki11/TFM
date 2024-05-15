@@ -120,3 +120,27 @@ class RobertaLargePooledOutput(nn.Module):
         pooled_output_d = self.dropout(mixed_emb)
         logits = self.classifier(pooled_output_d)
         return mixed_emb, logits
+    
+class RobertaLargeCovidPooledOut(nn.Module):
+    def __init__(self, pretrained_model_name='sagteam/covid-twitter-xlm-roberta-large-large', hidden_size=1024, dropout_prob=0):
+        super(RobertaLargePooledOutput, self).__init__()
+        self.roberta = RobertaModel.from_pretrained(pretrained_model_name)
+        self.dropout = nn.Dropout(dropout_prob)
+        self.classifier = nn.Linear(hidden_size, 1)
+
+    def forward(self, input_ids, attention_mask=None):
+        outputs = self.roberta(input_ids, attention_mask=attention_mask)
+        pooled_output = outputs.pooler_output
+        pooled_output_d = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output_d) 
+        return pooled_output, logits 
+
+    def mixup_forward(self, input_ids_1, attention_mask_1, input_ids_2, attention_mask_2, beta):
+        emb_1 = self.roberta(input_ids_1, attention_mask=attention_mask_1)
+        emb_2 = self.roberta(input_ids_2, attention_mask=attention_mask_2)
+        emb_1 = emb_1.pooler_output
+        emb_2 = emb_2.pooler_output
+        mixed_emb = beta * emb_1 + (1 - beta) * emb_2
+        pooled_output_d = self.dropout(mixed_emb)
+        logits = self.classifier(pooled_output_d)
+        return mixed_emb, logits

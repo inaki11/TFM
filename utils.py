@@ -165,7 +165,7 @@ def evaluate(model, test_dataloader, THRESHOLD, device, LOWER_UPPER_BOUND=False,
     # Print average test loss for this epoch
     print(f"Average {val_or_test} Loss: {average_test_loss:.4f}")
     
-    return test_outputs
+    return test_outputs, mcc
 
 
 def evaluate_kfold_ensemble(predictions, test_dataloader, THRESHOLD=0.5, LOWER_UPPER_BOUND=False):

@@ -33,7 +33,7 @@ def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, 
                     beta, mixed_labels = mix_labels(labels, mixup_labels, device, alfa=alfa)
                     # OJO: Sobre-escribimos logits para que se pueda hacer uso despues de BCE o CL de igual forma.
                     # Sin embargo, el mixup devuelve los embeddings SIN MEZCLAR del primer batch, para que pueda ser usado junto SCL si se quiere.
-                    embeddings, logits = model.mixup_forward(input_ids, attention_mask, mixup_input_ids, mixup_attention_masks, beta.view(-1, 1))
+                    embeddings, logits = model.forward(input_ids, attention_mask, mixup_input_ids, mixup_attention_masks, beta.view(-1, 1))
 
                 else:
                     embeddings, logits = model(input_ids, attention_mask)

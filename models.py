@@ -122,8 +122,8 @@ class RobertaLargePooledOutput(nn.Module):
         return mixed_emb, logits
     
 class RobertaLargeCovidPooledOut(nn.Module):
-    def __init__(self, pretrained_model_name='sagteam/covid-twitter-xlm-roberta-large-large', hidden_size=1024, dropout_prob=0):
-        super(RobertaLargePooledOutput, self).__init__()
+    def __init__(self, pretrained_model_name='sagteam/covid-twitter-xlm-roberta-large', hidden_size=1024, dropout_prob=0):
+        super(RobertaLargeCovidPooledOut, self).__init__()
         self.roberta = RobertaModel.from_pretrained(pretrained_model_name)
         self.dropout = nn.Dropout(dropout_prob)
         self.classifier = nn.Linear(hidden_size, 1)

@@ -96,7 +96,7 @@ def train_loop(model, train_dataloader, test_en_dataloader, positive, negative, 
     return train_losses
 
 
-def evaluate(model, test_dataloader, THRESHOLD, device, LOWER_UPPER_BOUND=False, val_or_test=None, plot_errors_distribution=False):
+def evaluate(model, test_dataloader, THRESHOLD, device, loss_fn, LOWER_UPPER_BOUND=False, val_or_test=None, plot_errors_distribution=False):
     test_outputs = []
     test_true_labels = []
     model.eval()
@@ -114,7 +114,12 @@ def evaluate(model, test_dataloader, THRESHOLD, device, LOWER_UPPER_BOUND=False,
             labels = labels.to(device)
                     
             # Forward pass
-            embeddings, logits = model(input_ids, attention_mask)
+            if loss_fn == 'MixUp' or loss_fn == 'MixUp_SCL':
+                # creamos un tensor de 0 con las mismas dimensiones que labels
+                mixup_bypass = torch.zeros_like(labels)
+                embeddings, logits = model.forward(input_ids, attention_mask, input_ids, attention_mask, mixup_bypass.view(-1, 1))
+            else:
+                embeddings, logits = model(input_ids, attention_mask)
             logits = logits.squeeze(-1)
             # apply sigmoid to get probabilities
             test_outputs += torch.sigmoid(logits).tolist()

@@ -1,6 +1,8 @@
 from torch.utils.data import Dataset
 from transformers import BertTokenizer, RobertaTokenizer
 import json
+import nlpaug.augmenter.word as naw
+import random
 #import deepl
 
 class createAuxDataset(Dataset):
@@ -45,6 +47,7 @@ class createAuxDeepLDataset(Dataset):
 
 """
 
+"""
 class BertDataset(Dataset):
     def __init__(self, X, y, DATA_AUGMENTATION=False, MAX_LENGTH=512, MODEL_NAME='bert-base-uncased'):
         self.max_length = MAX_LENGTH
@@ -76,7 +79,59 @@ class BertDataset(Dataset):
         attention_mask = inputs['attention_mask'][0]
 
         return input_ids, attention_mask, label, text
-    
+"""
+
+class BertDataset(Dataset):
+    def __init__(self, X, y, device=None, DATA_AUGMENTATION=[], WR_percentage=None, MAX_LENGTH=512, MODEL_NAME='bert-base-uncased'):
+        self.max_length = MAX_LENGTH
+        #  'bert-base-uncased' (english 110M)
+        #  'bert-large-uncased' (english 330M)
+        self.data_augmentation = DATA_AUGMENTATION
+        self.tokenizer = BertTokenizer.from_pretrained(MODEL_NAME)
+        self.X = X
+        self.y = y
+        if self.data_augmentation != []:
+            if 'WR' in self.data_augmentation:
+                self.WR = naw.ContextualWordEmbsAug(model_path='bert-base-uncased', action="substitute", aug_p=WR_percentage, device=device, top_k=5)
+            if 'BT' in self.data_augmentation:
+                pass
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        text, label = self.X[idx], self.y[idx]
+        # Aplicar aumento de datos
+
+        if self.data_augmentation != []:
+            if random.random() > 0:  # 50% chance to ignore data augmentation
+                pass
+                #print(f"original: {text}")  # Do nothing, ignore data augmentation
+            else:
+                if 'WR' in self.data_augmentation:
+                    # apply word replacement
+                    text = self.WR.augment(text)[0]
+                    #print(f"WR: {text}")
+                if 'BT' in self.data_augmentation:
+                    #print('BT')
+                    pass
+                    # apply back translation
+
+            
+        # Tokenizar el texto y obtener los input_ids
+        inputs = self.tokenizer(
+            text,
+            padding='max_length',
+            truncation=True,
+            max_length=self.max_length,
+            return_tensors='pt'
+        )
+        
+        input_ids = inputs['input_ids'][0]
+        attention_mask = inputs['attention_mask'][0]
+
+        return input_ids, attention_mask, label, text
+
 class RobertaDataset(Dataset):
     def __init__(self, X, y, DATA_AUGMENTATION=False, MAX_LENGTH=512, MODEL_NAME='roberta-base'):
         self.max_length = MAX_LENGTH

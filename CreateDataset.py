@@ -68,10 +68,16 @@ class BertDataset(Dataset):
                 self.WR = naw.ContextualWordEmbsAug(model_path='bert-base-uncased', action="substitute", aug_p=WR_percentage,
                                                      stopwords=stopwords.words('english') ,device=device, top_k=5)
             if 'BT' in self.data_augmentation:
-                pass
+                self.BT = naw.BackTranslationAug(from_model_name='facebook/wmt19-en-de', to_model_name='facebook/wmt19-de-en', device=device)
             
             if 'SR' in self.data_augmentation:
                 self.SR = naw.SynonymAug(aug_src='wordnet', stopwords=stopwords.words('english'), aug_p=SR_percentage, device=device)
+
+            if 'RI' in self.data_augmentation:
+                pass
+            
+            if 'RS' in self.data_augmentation:
+                pass
 
     def __len__(self):
         return len(self.X)
@@ -91,11 +97,18 @@ class BertDataset(Dataset):
                     #print(f"WR: {text}")
                 if 'BT' in self.data_augmentation:
                     #print('BT')
-                    pass
+                    text = self.BT.augment(text)[0]
                     # apply back translation
                 if 'SR' in self.data_augmentation:
                     text = self.SR.augment(text)
                     # apply synonym replacement
+                if 'RI' in self.data_augmentation:
+                    # apply random insertion
+                    pass
+                if 'RS' in self.data_augmentation:
+                    # apply random swap
+
+                    pass
 
             
         # Tokenizar el texto y obtener los input_ids

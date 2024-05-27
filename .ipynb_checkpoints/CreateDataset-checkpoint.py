@@ -2,7 +2,6 @@ from torch.utils.data import Dataset
 from transformers import BertTokenizer, RobertaTokenizer
 import json
 import nlpaug.augmenter.word as naw
-import nlpaug.augmenter.sentence as nas
 import random
 import nltk
 from nltk.corpus import stopwords
@@ -55,7 +54,7 @@ class createAuxDeepLDataset(Dataset):
 
 
 class BertDataset(Dataset):
-    def __init__(self, X, y, device=None, DATA_AUGMENTATION=[], WR_percentage=None, SR_percentage=None, RI_percentage=None, MAX_LENGTH=512, MODEL_NAME='bert-base-uncased'):
+    def __init__(self, X, y, device=None, DATA_AUGMENTATION=[], WR_percentage=None, SR_percentage=None, MAX_LENGTH=512, MODEL_NAME='bert-base-uncased'):
         self.max_length = MAX_LENGTH
         #  'bert-base-uncased' (english 110M)
         #  'bert-large-uncased' (english 330M)
@@ -68,22 +67,11 @@ class BertDataset(Dataset):
             if 'WR' in self.data_augmentation:
                 self.WR = naw.ContextualWordEmbsAug(model_path='bert-base-uncased', action="substitute", aug_p=WR_percentage,
                                                      stopwords=stopwords.words('english') ,device=device, top_k=5)
-                
-            if 'S-WR' in self.data_augmentation:
-                self.S_WR = nas.context_word_embs_sentence(sentence_model='bert-base-uncased', action="substitute", stopwords=stopwords.words('english'), device=device, top_k=5)
-            
             if 'BT' in self.data_augmentation:
-                self.BT = naw.BackTranslationAug(from_model_name='facebook/wmt19-en-de', to_model_name='facebook/wmt19-de-en', device=device)
+                pass
             
             if 'SR' in self.data_augmentation:
                 self.SR = naw.SynonymAug(aug_src='wordnet', stopwords=stopwords.words('english'), aug_p=SR_percentage)
-
-            if 'RI' in self.data_augmentation:
-                self.RI = naw.ContextualWordEmbsAug(model_path='bert-base-uncased', action="insert", aug_p=RI_percentage, stopwords=stopwords.words('english'), 
-                                                    device=str(device), top_k=5)
-            
-            if 'RS' in self.data_augmentation:
-                self.RS = naw.RandomSwapAug(action="swap", aug_p=0.1, stopwords=stopwords.words('english'), device=device)
 
     def __len__(self):
         return len(self.X)
@@ -101,25 +89,13 @@ class BertDataset(Dataset):
                     # apply word replacement
                     text = self.WR.augment(text)[0]
                     #print(f"WR: {text}")
-                if 'S-WR' in self.data_augmentation:
-                    # apply sentence word replacement
-                    text = self.S_WR.augment(text)[0]
-                    #print(f"S-WR: {text}")
-
                 if 'BT' in self.data_augmentation:
                     #print('BT')
-                    text = self.BT.augment(text)[0]
+                    pass
                     # apply back translation
                 if 'SR' in self.data_augmentation:
                     text = self.SR.augment(text)[0]
                     # apply synonym replacement
-                if 'RI' in self.data_augmentation:
-                    # apply random insertion
-                    text = self.RI.augment(text)[0]
-
-                if 'RS' in self.data_augmentation:
-                    text = self.RS.augment(text)[0]
-                    
 
             
         # Tokenizar el texto y obtener los input_ids

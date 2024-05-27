@@ -1,0 +1,1 @@
+{"Val_0.5_threshold_MCC": 0.7908860749910515, "_timestamp": 1716730994.8086622, "_runtime": 1666.0145902633667, "_step": 2, "Test_0.5_threshold_MCC": 0.8024133133625797, "test_ensemble_0.5_threshold_MCC": 0.8730046409788318, "_wandb": {"runtime": 1664}}

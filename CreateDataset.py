@@ -30,6 +30,30 @@ class createAuxDataset(Dataset):
     def __getitem__(self, idx):
         text, category = self.data[idx]
         return text, category
+    
+class createAuxSubmissionDataset(Dataset):
+    def __init__(self, file_path, MAX_LENGTH=512):
+        self.data = []
+        self.max_length = MAX_LENGTH
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        #  'bert-base-uncased' (english 110M)
+        #  'bert-large-uncased' (english 330M)
+        with open(file_path, 'r') as f:
+            json_data = json.load(f)
+            for item in json_data:
+                text = item['text']
+                id = item['id']
+                inputs = self.tokenizer(text, padding='max_length', truncation=True, max_length=self.max_length, return_tensors='pt')
+                input_ids = inputs['input_ids'][0]
+                attention_mask = inputs['attention_mask'][0]
+                self.data.append((input_ids, attention_mask, id))
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        input_ids, attention_mask, id = self.data[idx]
+        return input_ids, attention_mask, id
 """
 class createAuxDeepLDataset(Dataset):
     def __init__(self, file_path, DATA_AUGMENTATION=False, MAX_LENGTH=512, target_language='EN'):
